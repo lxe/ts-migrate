@@ -5,22 +5,7 @@ import path from 'path';
 import log from 'updatable-log';
 import yargs from 'yargs';
 
-import {
-  declareMissingClassPropertiesPlugin,
-  eslintFixPlugin,
-  explicitAnyPlugin,
-  hoistClassStaticsPlugin,
-  jsDocPlugin,
-  memberAccessibilityPlugin,
-  reactClassLifecycleMethodsPlugin,
-  reactClassStatePlugin,
-  reactDefaultPropsPlugin,
-  reactPropsPlugin,
-  reactShapePlugin,
-  stripTSIgnorePlugin,
-  tsIgnorePlugin,
-  Plugin,
-} from 'ts-migrate-plugins';
+import { stripTSIgnorePlugin, tsIgnorePlugin, Plugin } from 'ts-migrate-plugins';
 import { migrate, MigrateConfig } from 'ts-migrate-server';
 import init from './commands/init';
 import rename from './commands/rename';
@@ -75,75 +60,18 @@ yargs
       let config: MigrateConfig;
 
       if (args.plugin) {
-        const availablePlugins = [
-          declareMissingClassPropertiesPlugin,
-          eslintFixPlugin,
-          explicitAnyPlugin,
-          hoistClassStaticsPlugin,
-          jsDocPlugin,
-          memberAccessibilityPlugin,
-          reactClassLifecycleMethodsPlugin,
-          reactClassStatePlugin,
-          reactDefaultPropsPlugin,
-          reactPropsPlugin,
-          reactShapePlugin,
-          stripTSIgnorePlugin,
-          tsIgnorePlugin,
-        ];
+        const availablePlugins = [stripTSIgnorePlugin, tsIgnorePlugin];
         const plugin = availablePlugins.find((cur) => cur.name === args.plugin);
         if (!plugin) {
           log.error(`Could not find a plugin named ${args.plugin}.`);
           process.exit(1);
-          return;
         }
-        if (plugin === jsDocPlugin) {
-          const anyAlias = args.aliases === 'tsfixme' ? '$TSFixMe' : undefined;
-          const typeMap = typeof args.typeMap === 'string' ? JSON.parse(args.typeMap) : undefined;
-          config = new MigrateConfig().addPlugin(jsDocPlugin, { anyAlias, typeMap });
-        } else {
-          config = new MigrateConfig().addPlugin(plugin, {});
-        }
+
+        config = new MigrateConfig().addPlugin(plugin, {});
       } else {
-        const airbnbAnyAlias = '$TSFixMe';
-        const airbnbAnyFunctionAlias = '$TSFixMeFunction';
-        // by default, we're not going to use any aliases in ts-migrate
-        const anyAlias = args.aliases === 'tsfixme' ? airbnbAnyAlias : undefined;
-        const anyFunctionAlias = args.aliases === 'tsfixme' ? airbnbAnyFunctionAlias : undefined;
-        const useDefaultPropsHelper = args.useDefaultPropsHelper === 'true';
-
-        const { defaultAccessibility, privateRegex, protectedRegex, publicRegex } = args;
-
         config = new MigrateConfig()
           .addPlugin(stripTSIgnorePlugin, {})
-          .addPlugin(hoistClassStaticsPlugin, { anyAlias })
-          .addPlugin(reactPropsPlugin, {
-            anyAlias,
-            anyFunctionAlias,
-            shouldUpdateAirbnbImports: true,
-          })
-          .addPlugin(reactClassStatePlugin, { anyAlias })
-          .addPlugin(reactClassLifecycleMethodsPlugin, { force: true })
-          .addPlugin(reactDefaultPropsPlugin, {
-            useDefaultPropsHelper,
-          })
-          .addPlugin(reactShapePlugin, {
-            anyAlias,
-            anyFunctionAlias,
-          })
-          .addPlugin(declareMissingClassPropertiesPlugin, { anyAlias })
-          .addPlugin(memberAccessibilityPlugin, {
-            defaultAccessibility,
-            privateRegex,
-            protectedRegex,
-            publicRegex,
-          })
-          .addPlugin(explicitAnyPlugin, { anyAlias })
-          // We need to run eslint-fix before ts-ignore because formatting may affect where
-          // the errors are that need to get ignored.
-          .addPlugin(eslintFixPlugin, {})
-          .addPlugin(tsIgnorePlugin, {})
-          // We need to run eslint-fix again after ts-ignore to fix up formatting.
-          .addPlugin(eslintFixPlugin, {});
+          .addPlugin(tsIgnorePlugin, {});
       }
 
       const exitCode = await migrate({ rootDir, config });
@@ -173,19 +101,10 @@ yargs
           },
         };
       }
-      const eslintFixChangedPlugin: Plugin = {
-        name: 'eslint-fix-changed',
-        async run(params) {
-          if (!changedFiles.has(params.fileName)) return undefined;
-          if (changedFiles.get(params.fileName) === params.text) return undefined;
-          return eslintFixPlugin.run(params);
-        },
-      };
 
       const config = new MigrateConfig()
         .addPlugin(withChangeTracking(stripTSIgnorePlugin), {})
-        .addPlugin(withChangeTracking(tsIgnorePlugin), {})
-        .addPlugin(eslintFixChangedPlugin, {});
+        .addPlugin(withChangeTracking(tsIgnorePlugin), {});
 
       const exitCode = await migrate({ rootDir, config });
 
